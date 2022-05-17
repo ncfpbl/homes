@@ -1,0 +1,98 @@
+#Title: Street Map 2.0
+#Subtitle: Speed Limit
+#Author: Angela Kothe
+#Date: April 30th, 2022
+#Purpose: Attempting to Draw a Map of Streets in SRQ by Speed Limit
+#Requires: coast and street shapefiles from OpenSarasota Website
+#Output: png files
+
+library(maptools)
+library(rgeos)
+library(tidyverse)
+library(rgdal)
+library(ggthemes)
+library(socviz)
+library(scales)
+library(cowplot)
+library(ggmap)
+library(dplyr)
+library(showtext)
+library(sf)
+library(extrafont)
+library(haven)
+library(here)
+library(viridis)
+
+wd <- here("Documents", "Github", "pbl")
+
+#streets and roads shapefile; data retrieved from shape
+s <- readOGR(here(wd, "shapes", "streets", "Street.shp"))
+s <- spTransform(s, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+s.df <- fortify(s, region = "zipr")
+
+c <- readOGR(here(wd, "shapes", "coast", "CoastalRegulatoryLine.shp"))
+c <- spTransform(c, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+c.df <- fortify(c)
+
+data <-s@data
+data$objectid <- as.character(data$objectid)
+data <- data %>%
+          rename(id = objectid)
+
+#merge data with shapefile
+data <- left_join(s.df, data, by = "id", sort = FALSE)
+
+#plot
+font_add_google(name = "Lato", family = "lato") 
+showtext_auto()
+
+ggplot() +
+    geom_path(data = c.df,
+              aes(long, lat, group = group), 
+              colour = "skyblue", 
+              size = .2) +
+    geom_path(data = data, aes(x = long, y = lat, group = group,
+                               color = speedlimit),
+              size = .3, 
+              alpha = 1) +
+    coord_sf(xlim = c(-82.7, -82.4), 
+             ylim = c(27.2, 27.4),
+             expand = FALSE) +
+    scale_fill_viridis_c(alpha = 1,
+                         begin = 0,
+                         end = 1,
+                         direction = -1,
+                         option = "H",
+                         values = NULL,
+                         space = "Lab",
+                         na.value = "grey50",
+                         guide = "colourbar",
+                         aesthetics = "colour") +
+    theme_map() +
+    theme(legend.position = "top", 
+          legend.justification = "center",
+          legend.title = element_blank(),
+          legend.text = element_text(color = "white", 
+                                     size = 28, 
+                                     family = "lato"),
+          legend.key.height = unit(1, "cm"),
+          legend.key.width = unit(3, "cm"),
+          plot.title = element_text(size = 40, 
+                                    family = "lato", 
+                                    face = "bold", 
+                                    hjust = .5,
+                                    color = "white"),
+          plot.background = element_rect(fill = "black", 
+                                         color = "black"),
+          plot.subtitle = element_text(family = "lato", 
+                                       size = 16, 
+                                       hjust = .5, 
+                                       color = "white")) +
+    labs(title = "STREETS IN SARASOTA", 
+         subtitle = "Speed Limit")
+
+ggsave(width = 15, height = 12, device = "png", 
+       here(wd, "plots", "streetlimit.png"),
+       bg = "black", dpi = 700)
+
+

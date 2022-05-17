@@ -1,0 +1,158 @@
+---
+title: "Roads in Sarasota"
+author: "Angela Kothe"
+date: "5/2/2022"
+output: html_document
+---
+
+I made a couple maps of roads in Sarasota using the ggmap and viridis packages. The underlying data was available on the Explore Sarasota County website, as was the coast and road shapefiles.
+
+I first made a map of streets, with colors indicating the speed limit.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+library(maptools)
+library(rgeos)
+library(tidyverse)
+library(rgdal)
+library(ggthemes)
+library(socviz)
+library(scales)
+library(cowplot)
+library(ggmap)
+library(dplyr)
+library(showtext)
+library(sf)
+library(extrafont)
+library(haven)
+library(here)
+library(viridis)
+
+#streets and roads shapefile; data retrieved from shape
+s <- readOGR(here("shapes", "streets", "Street.shp"))
+s <- spTransform(s, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+s.df <- fortify(s, region = "zipr")
+
+c <- readOGR(here("shapes", "coast", "CoastalRegulatoryLine.shp"))
+c <- spTransform(c, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+c.df <- fortify(c)
+
+data <-s@data
+data$objectid <- as.character(data$objectid)
+data <- data %>%
+          rename(id = objectid)
+
+#merge data with shapefile
+data <- left_join(s.df, data, by = "id", sort = FALSE)
+
+#plot
+font_add_google(name = "Lato", family = "lato") 
+showtext_auto()
+
+ggplot() +
+    geom_path(data = c.df,
+              aes(long, lat, group = group), 
+              colour = "skyblue", 
+              size = .2) +
+    geom_path(data = data, aes(x = long, y = lat, group = group,
+                               color = speedlimit),
+              size = .3, 
+              alpha = 1) +
+    coord_sf(xlim = c(-82.7, -82.4), 
+             ylim = c(27.2, 27.4),
+             expand = FALSE) +
+    scale_fill_viridis_c(alpha = 1,
+                         begin = 0,
+                         end = 1,
+                         direction = -1,
+                         option = "H",
+                         values = NULL,
+                         space = "Lab",
+                         na.value = "grey50",
+                         guide = "colourbar",
+                         aesthetics = "colour") +
+    theme_map() +
+    theme(legend.position = "top", 
+          legend.justification = "center",
+          legend.title = element_blank(),
+          legend.text = element_text(color = "white", 
+                                     size = 28, 
+                                     family = "lato"),
+          legend.key.height = unit(1, "cm"),
+          legend.key.width = unit(3, "cm"),
+          plot.title = element_text(size = 40, 
+                                    family = "lato", 
+                                    face = "bold", 
+                                    hjust = .5,
+                                    color = "white"),
+          plot.background = element_rect(fill = "black", 
+                                         color = "black"),
+          plot.subtitle = element_text(family = "lato", 
+                                       size = 16, 
+                                       hjust = .5, 
+                                       color = "white")) +
+    labs(title = "STREETS IN SARASOTA", 
+         subtitle = "Speed Limit")
+
+```
+
+I also made a map of the eight most common road types in Sarasota and color coded the data.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+#color palette
+colors <- c("skyblue", "hotpink", "green", "red", "orange", "purple", 
+            "yellow", "pink", "white")
+
+data <- read_dta(here("data", "streets.dta"))
+data <- data %>%
+          rename(id = objectid)
+
+#merge data with shapefile
+data$id <- as.character(data$id)
+data <- left_join(s.df, data, by = "id", sort = FALSE)
+data$type[is.na(data$type)] = "Other"
+
+#plot font
+font_add_google(name = "Lato", family = "lato") 
+showtext_auto()
+
+#plot
+ggplot() +
+      geom_path(data = data, 
+                aes(x = long, y = lat, group = group, color = type),
+                size = .3, alpha = 1) +
+      coord_sf(xlim = c(-82.7, -82.4), 
+               ylim = c(27.2, 27.4),
+               expand = FALSE) +
+      scale_color_manual(values = colors) + 
+      theme_map() +
+      theme(legend.position = "top", 
+            legend.justification = "center",
+            legend.title = element_blank(),
+            legend.text = element_text(color = "white", 
+                                       size = 28, 
+                                       family = "lato"),
+            legend.key.height = unit(1, "cm"),
+            legend.key.width = unit(1, "cm"),
+            plot.title = element_text(size = 40, 
+                                      family = "lato", 
+                                      face = "bold", 
+                                      hjust = .5,
+                                      color = "white"),
+            plot.background = element_rect(fill = "black", 
+                                           color = "black"),
+            plot.subtitle = element_text(family = "lato", 
+                                         size = 16, 
+                                         hjust = .5, 
+                                         color = "white")) +
+      labs(title = "STREETS IN SARASOTA", 
+             subtitle = "Street Type")
+
+```
+
+The map illuminates the loose application of road classifications. A road is
+any pathway that connects two given points, and the most general kind of path designated for cars. An avenue is a road that is perpendicular to a street with trees or buildings on the sides. Similarly, a street is a road that runs perpendicular to an avenue and has buildings along its side. A court is a road that ends in a cul-de-sac. A circle is a road that is a closed loop. If you look at the map, many roads subvert their proper definition.
+
+
+
+

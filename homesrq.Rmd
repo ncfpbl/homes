@@ -1,0 +1,335 @@
+---
+title: "Homes in Sarasota"
+author: "Angela Kothe"
+date: "5/16/2022"
+output: html_document
+---
+
+I made maps of homes in Sarasota using the ggmap and viridis packages. The roads and coast shapefiles were downloaded from the Explore Sarasota County website, and the data I used was downloaded from the Sarasota County Accessor's website. The points on the map are the exact location of the addresses in the data. I found the coordinates using the geocoding function in ggmap, which runs on Google Maps api(s).
+
+I used the data to make a map of pools in Sarasota. There is clustering around some areas of the city, but it is difficult to know if this is due to sampling biases in the dataset or a genuine pattern in the city.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+library(maptools)
+library(rgeos)
+library(tidyverse)
+library(rgdal)
+library(ggthemes)
+library(socviz)
+library(scales)
+library(cowplot)
+library(ggmap)
+library(dplyr)
+library(showtext)
+library(sf)
+library(extrafont)
+library(haven)
+library(here)
+library(viridis)
+
+wd <- here("Documents", "Github", "pbl")
+
+#data, tree height; zip code and roads shapefile
+data <- read_csv(here("data", "geocoded.csv"))
+
+s <- readOGR(here("shapes", "streets", "Street.shp"))
+s <- spTransform(s, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+s.df <- fortify(s, region = "zipr")
+
+c <- readOGR(here("shapes", "coast", "CoastalRegulatoryLine.shp"))
+c <- spTransform(c, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84"))
+c.df <- fortify(c)
+
+
+font_add_google(name = "Lato", family = "lato") 
+showtext_auto()
+
+#Pools
+
+ggplot(s.df) +
+  geom_path(data = c, aes(long, lat, group = group), 
+            colour = "skyblue", 
+            size = .5) +
+  geom_path(aes(long, lat, group = group), 
+            colour = "black", 
+            size = .2,
+            alpha = .4) +
+  coord_sf(xlim = c(-82.65, -82.4), 
+           ylim = c(27.2, 27.4),
+           expand = FALSE) +
+  geom_point(data = na.omit(data), 
+             aes(lon, lat, colour = pool), 
+             alpha = .3,
+             size = 1.5) +
+  theme_map() +
+  theme(legend.position = "none", 
+        plot.title = element_text(size = 40, 
+                                  family = "lato", 
+                                  face = "bold", 
+                                  hjust = .5,
+                                  color = "black"),
+        plot.background = element_rect(fill = "white", 
+                                       color = NA),
+        plot.subtitle = element_text(family = "lato", 
+                                     size = 16, 
+                                     hjust = .5, 
+                                     color = "black")) +
+  labs(title = "THE EXACT LOCATION OF POOLS IN SARASOTA")
+
+
+```
+
+
+I also made a map of home according to the number of bedrooms it has. Most homes have about three bedrooms, but along the coasts we see a more diverse array of homes.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+nbed <- read_dta(here("data", "nbedrooms.dta"))
+
+bdata <- left_join(data, nbed, by = "full_address")
+
+ggplot(s.df) +
+  geom_path(data = c, aes(long, lat, group = group), 
+            colour = "skyblue", 
+            size = .5) +
+  geom_path(aes(long, lat, group = group), 
+            colour = "black", 
+            size = .2,
+            alpha = .4) +
+  coord_sf(xlim = c(-82.65, -82.4), 
+           ylim = c(27.2, 27.4),
+           expand = FALSE) +
+  geom_point(data = na.omit(bdata), 
+             aes(lon, lat, colour = bedrooms.y), 
+             alpha = .3,
+             size = 1.5) +
+  scale_fill_viridis_c(alpha = 1,
+                       begin = 0,
+                       end = 1,
+                       direction = -1,
+                       option = "H",
+                       values = NULL,
+                       space = "Lab",
+                       na.value = "grey50",
+                       guide = "colourbar",
+                       aesthetics = "colour",
+                       breaks = c(2, 3, 4, 5, 6, 7, 8, 9),
+                       labels = c("", "3", "4", "5", 
+                                  "6", "7", "8", ""),
+                       limits = c(2, 9)) +
+  theme_map() +
+  theme(legend.position = "top", 
+        legend.justification = "center",
+        legend.title = element_blank(),
+        legend.text = element_text(color = "black", 
+                                   size = 15, 
+                                   family = "lato"),
+        legend.key.height = unit(1, "cm"),
+        legend.key.width = unit(3, "cm"),
+        plot.title = element_text(size = 40, 
+                                  family = "lato", 
+                                  face = "bold", 
+                                  hjust = .5,
+                                  color = "black"),
+        plot.background = element_rect(fill = "white", 
+                                       color = NA),
+        plot.subtitle = element_text(family = "lato", 
+                                     size = 16, 
+                                     hjust = .5, 
+                                     color = "black")) +
+  labs(title = "HOMES IN SARASOTA",
+       subtitle = "NUMBER OF BEDROOMS")
+
+ggsave(width = 15, height = 12, device = "png", 
+       here("plots", "srqbedrooms2.png"),
+       bg = "white", dpi = 700)
+
+
+
+```
+
+I also made a map of the year homes were built. The oldest homes were built along Siesta and Longboat Key.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+ydata <- subset(data, select = c(lon, lat, buildYear))
+
+ydata <- na.omit(ydata)
+
+ggplot(s.df) +
+  geom_path(data = c, aes(long, lat, group = group), 
+            colour = "skyblue", 
+            size = .5) +
+  geom_path(aes(long, lat, group = group), 
+            colour = "black", 
+            size = .2,
+            alpha = .4) +
+  coord_sf(xlim = c(-82.65, -82.4), 
+           ylim = c(27.2, 27.4),
+           expand = FALSE) +
+  geom_point(data = na.omit(ydata), 
+             aes(lon, lat, colour = buildYear), 
+             alpha = .3,
+             size = 1.5) +
+  scale_fill_viridis_c(alpha = 1,
+                       begin = 0,
+                       end = 1,
+                       direction = 1,
+                       option = "A",
+                       values = NULL,
+                       space = "Lab",
+                       na.value = "grey50",
+                       guide = "colourbar",
+                       aesthetics = "colour",
+                       breaks = c(1870, 1900, 1930, 1960, 1990, 2020),
+                       labels = c("1870", "1900", "1930", "1960", 
+                                  "1990", "2020")) +
+  theme_map() +
+  theme(legend.position = "top", 
+        legend.justification = "center",
+        legend.title = element_blank(),
+        legend.text = element_text(color = "black", 
+                                   size = 15, 
+                                   family = "lato"),
+        legend.key.height = unit(1, "cm"),
+        legend.key.width = unit(3, "cm"),
+        plot.title = element_text(size = 40, 
+                                  family = "lato", 
+                                  face = "bold", 
+                                  hjust = .5,
+                                  color = "black"),
+        plot.background = element_rect(fill = "white", 
+                                       color = NA),
+        plot.subtitle = element_text(family = "lato", 
+                                     size = 16, 
+                                     hjust = .5, 
+                                     color = "black")) +
+  labs(title = "HOMES IN SARASOTA",
+       subtitle = "YEAR BUILT")
+
+
+
+```
+
+I made a map of the last year the homes in the dataset were sold. I used the same color palette as in the last map. However, the points are much lighter this time, as expected. Notice the cluster of homes sold in 2020 in the southeastern part of the map, and the home last sold in 1940 at the gateway to Longboat Key.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+ggplot(s.df) +
+  geom_path(data = c, aes(long, lat, group = group), 
+            colour = "skyblue", 
+            size = .5) +
+  geom_path(aes(long, lat, group = group), 
+            colour = "black", 
+            size = .2,
+            alpha = .4) +
+  coord_sf(xlim = c(-82.65, -82.4), 
+           ylim = c(27.2, 27.4),
+           expand = FALSE) +
+  geom_point(data = na.omit(data), 
+             aes(lon, lat, colour = sold), 
+             alpha = .3,
+             size = 1.5) +
+  scale_fill_viridis_c(alpha = 1,
+                       begin = 0,
+                       end = 1,
+                       direction = 1,
+                       option = "Inferno",
+                       values = NULL,
+                       space = "Lab",
+                       na.value = "grey50",
+                       guide = "colourbar",
+                       aesthetics = "colour",
+                       breaks = c(1920, 1940, 1960, 1980, 
+                                  2000, 2020),
+                       labels = c("1920", "1940", "1960", "1980", 
+                                  "2000", "2020")) +
+  theme_map() +
+  theme(legend.position = "top", 
+        legend.justification = "center",
+        legend.title = element_blank(),
+        legend.text = element_text(color = "black", 
+                                   size = 15, 
+                                   family = "lato"),
+        legend.key.height = unit(1, "cm"),
+        legend.key.width = unit(3, "cm"),
+        plot.title = element_text(size = 40, 
+                                  family = "lato", 
+                                  face = "bold", 
+                                  hjust = .5,
+                                  color = "black"),
+        plot.background = element_rect(fill = "white", 
+                                       color = NA),
+        plot.subtitle = element_text(family = "lato", 
+                                     size = 16, 
+                                     hjust = .5, 
+                                     color = "black")) +
+        labs(title = "HOMES IN SARASOTA",
+             subtitle = "LAST YEAR SOLD")
+
+
+```
+
+Here's a map of homes in Sarasota by assessed value. There is an interesting amount of variance in most areas, but a clear clustering around the father end of the spectrum along the coast and keys.
+
+```{r, width = 25, height = 20, echo = FALSE, show_col_types = FALSE, fig.keep = "last", message = FALSE, results = "hide", warning = FALSE, fig.height = 20, fig.width = 25}
+
+value <- read_dta(here("data", "value.dta"))
+
+data <- left_join(data, value, by = "full_address")
+
+vdata <- subset(data, select = c(lon, lat, value))
+
+vdata <- na.omit(vdata)
+
+ggplot(s.df) +
+  geom_path(data = c, aes(long, lat, group = group), 
+            colour = "skyblue", 
+            size = .5) +
+  geom_path(aes(long, lat, group = group), 
+            colour = "black", 
+            size = .2,
+            alpha = .4) +
+  coord_sf(xlim = c(-82.65, -82.4), 
+           ylim = c(27.2, 27.4),
+           expand = FALSE) +
+  geom_point(data = na.omit(vdata), 
+             aes(lon, lat, colour = value), 
+             alpha = .3,
+             size = 1.8) +
+  scale_color_gradient2(low = "yellow", 
+                        mid = "darkblue", 
+                        high = "red", 
+                        midpoint = median(vdata$value),
+                        labels = c("200,000", "400,000", "600,000", 
+                                   "800,000", "1,000,000"),
+                        na.value = NA,
+                        limits = c(200, 1000)) +
+  theme_map() +
+  theme(legend.position = "top", 
+        legend.justification = "center",
+        legend.title = element_blank(),
+        legend.text = element_text(color = "black", 
+                                   size = 15, 
+                                   family = "lato"),
+        legend.key.height = unit(1, "cm"),
+        legend.key.width = unit(3, "cm"),
+        plot.title = element_text(size = 40, 
+                                  family = "lato", 
+                                  face = "bold", 
+                                  hjust = .5,
+                                  color = "black"),
+        plot.background = element_rect(fill = "white", 
+                                       color = NA),
+        plot.subtitle = element_text(family = "lato", 
+                                     size = 16, 
+                                     hjust = .5, 
+                                     color = "black")) +
+  labs(title = "HOMES IN SARASOTA",
+       subtitle = "ASSESSED VALUE")
+
+
+```
+
+

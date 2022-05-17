@@ -30,7 +30,7 @@ data <- read_dta(here(wd, "data", "addresses.dta"))
 
 
 #my api; get your own
-#register_google(key = "AIzaSyBaD64_Rhda_rzyRQRyb6u0z7rEeEskQSQ", write = TRUE)
+#register_google(key = "[REDACTED]", write = TRUE)
 
 
 # Loop through the addresses to get the latitude and longitude 
